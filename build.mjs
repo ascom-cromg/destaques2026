@@ -13,3 +13,6 @@ fs.writeFileSync(new URL('apps-script/StoryCore.gs',root),storyCore.replace(/if\
 fs.copyFileSync(new URL('config.js',root),new URL('dist/config.js',root));
 fs.writeFileSync(new URL('dist/.nojekyll',root),'');
 console.log('Página GitHub e formulário institucional gerados.');
+
+
+for(const file of ['mural.html','mural.css','mural.js','app.css','data/historias-publicadas.json','assets/logo-destaques-2026.webp']){fs.mkdirSync(new URL(file.includes('/')?'dist/'+file.slice(0,file.lastIndexOf('/')):'dist',root),{recursive:true});fs.copyFileSync(new URL(file,root),new URL('dist/'+file,root));}

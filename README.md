@@ -27,3 +27,13 @@ Em Settings → Pages, selecione GitHub Actions como origem. O workflow testa, g
 - Controles são gravados em lotes atômicos sob lock. Preserve a chave HMAC gerada nas propriedades. Não altere nem apague a chave após iniciar a coleta. Registros técnicos da plataforma Google podem existir.
 
 Nenhum cadastro real, resposta, voto, token ou senha é incluído neste repositório. A configuração do Google e a verificação de ponta a ponta são obrigatórias antes de divulgar o link de participação real.
+
+
+
+## Mural público
+
+`mural.html` apresenta um mosaico com busca e leitura em tela cheia (fechar por Escape, navegação por botões ou setas e retorno de foco). O mural lê `data/historias-publicadas.json`, sem acessar a planilha restrita ou exigir login. A página inicial inclui um atalho para o mural.
+
+A publicação no mural é **manual e separada da coleta no Google**. Aprovar uma linha na planilha não atualiza automaticamente o GitHub. Para publicar, copie exclusivamente código (A), título (B) e relato revisado (D) das linhas com status PUBLICADA (E), após revisão de identificação pessoal, e atualize o JSON no formato `{"items":[{"id":"H-XXXXXXXXXXXX","title":"Título","body":"Texto revisado","status":"PUBLICADA"}]}`. Faça commit; o GitHub Pages republica o mural. Nunca copie a planilha inteira, o relato original, o e-mail ou as chaves de autoria. Para retirar uma história, remova o item do JSON e publique novamente.
+
+Na criação do mural, a planilha continha somente um teste técnico PENDENTE: ele não foi incluído. O mural começa vazio, sem histórias fictícias. O arquivo publicado deve conter somente dados explicitamente revisados; o filtro da interface também descarta itens sem status PUBLICADA e campos extras.
