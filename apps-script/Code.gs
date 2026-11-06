@@ -7,16 +7,18 @@ var PREMIO = Object.freeze({
 });
 
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile('Index')
+  var view=HtmlService.createTemplateFromFile('Index');view.authBase=ScriptApp.getService().getUrl();
+  return view.evaluate()
     .setTitle('Destaques CRO-MG 2026')
     .addMetaTag('viewport','width=device-width, initial-scale=1');
 }
 
-function authenticate_() {
+function authenticate_(payload) {
   var owner=String(Session.getEffectiveUser().getEmail()||'').trim().toLowerCase();
   var email=String(Session.getActiveUser().getEmail()||'').trim().toLowerCase();
   if(!owner || owner.split('@').length!==2 || owner.split('@')[1]!==PREMIO.domain)
     throw new Error('A implantação precisa ser feita por uma conta institucional do CRO-MG.');
+  if(payload&&payload.authToken)return conviteSession_(payload.authToken);
   if(!email || email.split('@').length!==2 || email.split('@')[1]!==PREMIO.domain)
     throw new Error('Acesso restrito. Abra este link usando sua conta Google @cromg.org.br. Se já estiver conectado, confirme a conta selecionada no Google.');
   return email;
@@ -48,12 +50,12 @@ function participantHash_(email){
 function hasVoted_(book,hash){
   return sheet_(book,PREMIO.control).getDataRange().getValues().slice(1).some(function(r){return String(r[0])===hash;});
 }
-function getBootstrap(){
-  return bootstrapElection_();
+function getBootstrap(payload){
+  return bootstrapElection_(payload);
 }
 function buscarIndicacoes(payload){
   try {
-    var email=authenticate_(),hash=participantHash_(email);
+    var email=authenticate_(payload),hash=participantHash_(email);
     if(!payload || typeof payload.nonce!=='string' || payload.nonce.length>100 || CacheService.getScriptCache().get('premio-nonce:'+payload.nonce)!==hash)
       throw new Error('Sua sessão expirou. Recarregue a página para continuar.');
     if(!PremioCore.categories.some(function(c){return c.id===payload.category;}))throw new Error('Indicação inválida.');
@@ -69,7 +71,7 @@ function buscarIndicacoes(payload){
 function enviarVotos(payload){
   var lock=LockService.getScriptLock(),locked=false;
   try {
-    var email=authenticate_(),hash=participantHash_(email);
+    var email=authenticate_(payload),hash=participantHash_(email);
     if(!lock.tryLock(20000))throw new Error('Há outros envios neste momento. Aguarde alguns segundos e tente novamente.');
     locked=true;
     var book=book_();
@@ -108,7 +110,7 @@ function cell_(value){return {userEnteredValue:typeof value==='number'?{numberVa
 function safeError_(error){
   var message=String(error&&error.message||'');
   // Não transmitir erros de provedores, dados de requisição ou stack traces ao navegador.
-  var allowed=['A implantação','Acesso restrito','Esta ação','A organização','O cadastro','Há outros','Sua sessão','A votação','Revise as seis','Uma das categorias','Indicação inválida','Uma indicação','A apuração','História:'];
+  var allowed=['A implantação','Acesso restrito','Esta ação','A organização','O cadastro','Há outros','Sua sessão','A votação','Revise as seis','Uma das categorias','Indicação inválida','Uma indicação','A apuração','História:','Código:'];
   return allowed.some(function(prefix){return message.indexOf(prefix)===0;})?message:'Não foi possível confirmar o envio. Tente novamente. Se o envio anterior foi concluído, o sistema impedirá uma duplicidade.';
 }
 
@@ -119,10 +121,10 @@ function prepararPremiacao(){
   schemas[PREMIO.people]=[['ID','Nome','Setor','Cidade','Regional','Cargo no PDF','Ativo','Revelação','Observações']].concat(CADASTRO_INICIAL.employees.map(function(p){return [p.id,p.name,p.sector,p.city,p.regional,p.role,'SIM','NÃO',p.note];}));
   schemas[PREMIO.regionals]=[['ID','Cidade','Ativa']].concat(CADASTRO_INICIAL.regionals.map(function(p){return [p.id,p.city,'SIM'];}));
   schemas[PREMIO.results]=[['Categoria ID','Homenagem','Indicado ID','Nome / Delegacia','Setor','Cidade','Votos']];
-  schemas[PREMIO.control]=[['Código de participação (HMAC)','Participou','E-mail do participante (restrito)']];
+  schemas[PREMIO.control]=[['Código de participação (HMAC)','Participou','Participante: e-mail ou convite (restrito)']];
   schemas[PREMIO.settings]=[['Chave','Valor','Orientação'],['STATUS','PREPARAÇÃO','Use o menu da premiação para abrir ou encerrar.'],['CADASTRO_VALIDADO','NÃO','Revise nomes completos, setores, lotações e vínculos. Marque SIM após conferir.'],['REVELACAO_VALIDADA','NÃO','Opcional: SIM restringe Revelação aos nomes marcados nessa coluna. NÃO permite buscar todos, seguindo o critério de recém-chegados.'],['FONTE_CADASTRO',CADASTRO_INICIAL.source,'Cidades da sede atribuídas a Belo Horizonte; confirmar lotação.']];
   Object.keys(schemas).forEach(function(name){var sheet=book.getSheetByName(name);if(!sheet)sheet=book.insertSheet(name);if(sheet.getLastRow()===0){var values=schemas[name];sheet.getRange(1,1,values.length,values[0].length).setValues(values);sheet.setFrozenRows(1);sheet.getRange(1,1,1,values[0].length).setFontWeight('bold').setBackground('#eeeeee');sheet.getDataRange().setWrap(true);sheet.setColumnWidths(1,values[0].length,190);}});
-  sheet_(book,PREMIO.control).getRange(1,3).setValue('E-mail do participante (restrito)');
+  sheet_(book,PREMIO.control).getRange(1,3).setValue('Participante: e-mail ou convite (restrito)');
   sheet_(book,PREMIO.control).hideSheet();
   var properties=PropertiesService.getScriptProperties();
   if(!properties.getProperty('PREMIACAO_HMAC_KEY')){
@@ -132,7 +134,7 @@ function prepararPremiacao(){
   prepararHistorias_(book);
   return 'Estrutura preparada. Revise o cadastro antes de abrir. O filtro de Revelação é opcional.';
 }
-function onOpen(){SpreadsheetApp.getUi().createMenu('Destaques 2026').addItem('Preparar estrutura','prepararPremiacao').addItem('Verificar autoria de história','verificarAutoriaHistoria').addItem('Abrir votação','abrirVotacao').addItem('Encerrar votação','encerrarVotacao').addToUi();}
+function onOpen(){SpreadsheetApp.getUi().createMenu('Destaques 2026').addItem('Preparar estrutura','prepararPremiacao').addItem('Importar convites','importarConvites').addItem('Verificar autoria de história','verificarAutoriaHistoria').addItem('Abrir votação','abrirVotacao').addItem('Encerrar votação','encerrarVotacao').addToUi();}
 function abrirVotacao(){
   assertAdmin_();if(!StoryCore.votingDate(Date.now()))throw new Error('A votação só pode ser aberta a partir de dezembro de 2026.');var book=book_(),s=settings_(book),catalog=catalog_(book);
   s.STATUS='ABERTA';if(!ready_(s,catalog))throw new Error('A organização precisa validar o cadastro. Se o filtro de Revelação estiver ativo, marque os elegíveis.');
@@ -141,3 +143,4 @@ function abrirVotacao(){
 }
 function encerrarVotacao(){assertAdmin_();setStatus_('ENCERRADA');}
 function setStatus_(status){var s=sheet_(book_(),PREMIO.settings),rows=s.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(rows[i][0]==='STATUS'){s.getRange(i+1,2).setValue(status);return;}throw new Error('A organização precisa configurar o status.');}
+

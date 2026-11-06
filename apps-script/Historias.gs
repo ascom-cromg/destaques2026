@@ -12,23 +12,23 @@ function storyProof_(id,key){
   if(!secret)throw new Error('A organização ainda precisa concluir a configuração de privacidade.');
   return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature('autoria|'+id+'|'+key,secret)).replace(/=+$/,'');
 }
-function bootstrapElection_(){
+function bootstrapElection_(payload){
   try{
-    var email=authenticate_(),book=book_(),hash=participantHash_(email),settings=settings_(book),catalog=catalog_(book),now=Date.now();
+    var email=authenticate_(payload),book=book_(),hash=participantHash_(email),settings=settings_(book),catalog=catalog_(book),now=Date.now();
     var voted=hasVoted_(book,hash),sent=hasStory_(book,storyParticipantHash_(email));
     var nonce=Utilities.getUuid()+Utilities.getUuid();CacheService.getScriptCache().put('premio-nonce:'+nonce,hash,1800);
     var open=StoryCore.submissionOpen(now,settings.HISTORIAS_STATUS)&&yes_(settings.HISTORIAS_PRIVACIDADE_REVISADA);
     return {ok:true,state:'ready',nonce:nonce,election:{submissionOpen:open,votingOpen:ready_(settings,catalog),alreadyVoted:voted,alreadySubmitted:sent,deadline:'30/11/2026 às 23h59',phase:settings.STATUS==='ENCERRADA'?'closed':open?'collecting':ready_(settings,catalog)?'voting':'awaiting_vote'}};
-  }catch(error){return {ok:false,message:safeError_(error)};}
+  }catch(error){if(String(error.message||'').indexOf('Acesso restrito')===0)return {ok:true,state:'login'};return {ok:false,message:safeError_(error)};}
 }
 function listarHistorias(payload){
-  try{var email=authenticate_();checkStorySession_(payload,email);return {ok:true,items:publishedStories_(book_())};}
+  try{var email=authenticate_(payload);checkStorySession_(payload,email);return {ok:true,items:publishedStories_(book_())};}
   catch(error){return {ok:false,message:safeError_(error)};}
 }
 function enviarHistoria(payload){
   var lock=LockService.getScriptLock(),locked=false;
   try{
-    var email=authenticate_();checkStorySession_(payload,email);
+    var email=authenticate_(payload);checkStorySession_(payload,email);
     var story=StoryCore.validate(payload),hash=storyParticipantHash_(email);
     if(!lock.tryLock(20000))throw new Error('Há outros envios neste momento. Tente novamente em alguns segundos.');
     locked=true;var book=book_(),rows=storyRows_(book),existing=rows.find(function(r){return r[0]===story.id;});
@@ -56,9 +56,9 @@ function enviarHistoria(payload){
   finally{if(locked)lock.releaseLock();}
 }
 function prepararHistorias_(book){
-  var definitions={};definitions[HISTORIAS.sheet]=['Código público','Título','Relato original (restrito)','Relato para publicação','Status','Verificador de autoria (restrito)','E-mail do autor (restrito)'];definitions[HISTORIAS.control]=['Código de participação (HMAC)','Enviou'];
+  var definitions={};definitions[HISTORIAS.sheet]=['Código público','Título','Relato original (restrito)','Relato para publicação','Status','Verificador de autoria (restrito)','Autor: e-mail ou convite (restrito)'];definitions[HISTORIAS.control]=['Código de participação (HMAC)','Enviou'];
   Object.keys(definitions).forEach(function(name){var s=book.getSheetByName(name);if(!s)s=book.insertSheet(name);if(!s.getLastRow()){s.getRange(1,1,1,definitions[name].length).setValues([definitions[name]]);s.setFrozenRows(1);s.getRange(1,1,1,definitions[name].length).setFontWeight('bold');s.getDataRange().setWrap(true);s.setColumnWidths(1,definitions[name].length,220);}});
-  sheet_(book,HISTORIAS.sheet).getRange(1,7).setValue('E-mail do autor (restrito)');
+  sheet_(book,HISTORIAS.sheet).getRange(1,7).setValue('Autor: e-mail ou convite (restrito)');
   sheet_(book,HISTORIAS.control).hideSheet();
   var config=sheet_(book,PREMIO.settings),keys=config.getDataRange().getValues().map(function(r){return r[0];});
   if(keys.indexOf('HISTORIAS_STATUS')<0)config.getRange(config.getLastRow()+1,1,1,3).setValues([['HISTORIAS_STATUS','ABERTO','Recebimento até 30/11/2026, às 23h59. Use ENCERRADO para antecipar o encerramento.']]);
@@ -73,3 +73,4 @@ function verificarAutoriaHistoria(){
   var row=storyRows_(book_()).find(function(r){return r[0]===id;});
   ui.alert(row&&row[5]===storyProof_(id,key)?'Autoria comprovada pelo código reservado.':'Código de autoria não confere.');
 }
+

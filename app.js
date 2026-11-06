@@ -106,13 +106,24 @@
   }
   function status(symbol,title,body,label,reset=false){main.innerHTML='<section class="status-content enter-animation"><div class="large-icon">'+icon(symbol)+'</div><span class="status-label">'+esc(label)+'</span><h1>'+esc(title)+'</h1><p>'+esc(body)+'</p>'+(reset?'<button class="primary" id="restart">Explorar novamente '+icon('arrow')+'</button>':'')+privacyCard()+'</section>';if(reset)$('#restart').onclick=()=>{state.ballot={};state.selected={};state.confirmed=false;state.completed=false;state.step=0;intro();focusHeading();};bindPrivacy();}
   function bindPrivacy(){document.querySelectorAll('[data-privacy]').forEach(el=>el.onclick=()=>$('#privacy-dialog').showModal());}
-  function rpc(method,payload){return new Promise((resolve,reject)=>{if(!window.google||!google.script||!google.script.run){reject(new Error('Abra o link de envio das histórias para entrar com sua conta Google.'));return;}const runner=google.script.run.withSuccessHandler(resolve).withFailureHandler(()=>reject(new Error('A conexão falhou. Tente de novo: sua história não será duplicada.')));if(method==='getBootstrap')runner.getBootstrap();else if(method==='buscarIndicacoes')runner.buscarIndicacoes(payload);else if(method==='listarHistorias')runner.listarHistorias(payload);else if(method==='enviarHistoria')runner.enviarHistoria(payload);else runner.enviarVotos(payload);});}
+  function rpc(method,payload){payload={...(payload||{}),...(state.authToken?{authToken:state.authToken}:{})};return new Promise((resolve,reject)=>{if(!window.google||!google.script||!google.script.run){reject(new Error('Abra o link de envio das histórias para entrar com sua conta Google.'));return;}const runner=google.script.run.withSuccessHandler(resolve).withFailureHandler(()=>reject(new Error('A conexão falhou. Tente de novo: sua história não será duplicada.')));if(method==='getBootstrap')runner.getBootstrap(payload);else if(method==='entrarComCodigo')runner.entrarComCodigo(payload);else if(method==='buscarIndicacoes')runner.buscarIndicacoes(payload);else if(method==='listarHistorias')runner.listarHistorias(payload);else if(method==='enviarHistoria')runner.enviarHistoria(payload);else runner.enviarVotos(payload);});}
+  function login(){
+    state.screen='login';state.ready=false;
+    const configured=APP_PAGES?String(window.PREMIO_CONFIG?.appsScriptUrl||''):APP_AUTH_BASE;
+    const match=configured.match(/^https:\/\/script\.google\.com\/(?:a\/macros\/cromg\.org\.br\/s|macros\/s)\/([A-Za-z0-9_-]+)\/exec$/);
+    const publicUrl=match?'https://script.google.com/macros/s/'+match[1]+'/exec':'';
+    const googleUrl=match?'https://script.google.com/a/macros/cromg.org.br/s/'+match[1]+'/exec':'';
+    main.innerHTML='<section class="login-page"><div class="eyebrow">ESSE ESPAÇO É SEU</div><h1>Entre do<br><em>seu jeito.</em></h1><p class="story-lead">Você só precisa de uma das duas opções para compartilhar sua história.</p><div class="login-grid"><article class="login-card"><span class="login-number">01</span><h2>Tenho e-mail do CRO-MG</h2><p>Use sua conta Google <strong>@cromg.org.br</strong>. Você não precisa de código de convite.</p>'+(googleUrl?'<a class="primary" target="_top" href="'+esc(googleUrl)+'">Entrar com Google '+icon('arrow')+'</a>':'<p class="error">O acesso Google está em preparação.</p>')+'</article><article class="login-card"><span class="login-number">02</span><h2>Tenho um código de convite</h2><p>Seu convite é individual. Você pode entrar mesmo sem uma conta Google.</p>'+(APP_PAGES?(publicUrl&&window.PREMIO_CONFIG?.inviteLoginEnabled===true?'<a class="secondary" href="'+esc(publicUrl)+'#codigo">Digitar meu código '+icon('arrow')+'</a>':'<p class="error">O acesso por convite está em ativação.</p>'):'<form id="invite-form"><label class="field-label" for="invite-code">Código de convite</label><input class="story-input invite-input" id="invite-code" required minlength="6" maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Digite seu código"><p id="invite-error" role="alert"></p><button class="primary" type="submit">Entrar com código '+icon('arrow')+'</button></form>')+'</article></div><p class="search-help">A divulgação das histórias é anônima. Sua identificação fica restrita à organização.</p>'+(APP_PAGES?'<a class="text-button" href="./">Voltar ao início</a>':'')+'</section>';
+    if(!APP_PAGES){const form=$('#invite-form');form.onsubmit=async event=>{event.preventDefault();const button=form.querySelector('button'),field=$('#invite-code');button.disabled=true;$('#invite-error').textContent='';try{const r=await rpc('entrarComCodigo',{code:field.value});field.value='';if(!r.ok||r.state!=='ready')throw new Error(r.message||'Não foi possível entrar. Tente novamente.');state.authToken=r.authToken;state.nonce=r.nonce;state.election=r.election;state.ready=true;storyUi.go('#enviar-historia');}catch(error){$('#invite-error').textContent=error.message;}finally{button.disabled=false;}};}
+    focusHeading();
+  }
   async function bootstrap(){
     if(APP_PAGES){state.ready=true;state.election={submissionOpen:Date.now()<StoryCore.deadline,alreadySubmitted:false,votingOpen:false};storyUi.route();return;}
     if(APP_DEMO){$('#demo-banner').hidden=false;state.catalog=DEMO_CATALOG;state.catalog.stories=PremioStoriesUI.examples;state.ready=true;storyUi.route();return;}
     try{
       const response=await rpc('getBootstrap');
       if(!response.ok)throw new Error(response.message);
+      if(response.state==='login'){login();return;}
       if(response.state==='ready'){state.ready=true;state.nonce=response.nonce;state.election=response.election;storyUi.route();}
       else if(response.state==='already_voted'){state.completed=true;status('shield','Sua participação já foi registrada.','Obrigado por fazer parte deste reconhecimento. Cada conta institucional participa uma única vez.','VOTAÇÃO ANÔNIMA');}
       else if(response.state==='closed')status('trophy','A votação foi encerrada.','Obrigado por fazer parte do nosso ano. Aguarde a divulgação da premiação pela organização.','DESTAQUES CRO-MG 2026');
@@ -123,9 +134,10 @@
   $('#privacy-dialog').addEventListener('click',e=>{if(e.target===$('#privacy-dialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}});
   $('#brand-home').onclick=()=>{if(state.busy||state.storySending)return;if(state.ready)storyUi.go('');};
   window.addEventListener('beforeunload',e=>{if(!APP_DEMO&&((!state.completed&&Object.keys(state.ballot).length)||(state.storyDraft&&state.storyDraft.body))){e.preventDefault();e.returnValue='';}});
-  storyUi=PremioStoriesUI.create({state,main,esc,icon,focusHeading,bindPrivacy,trophy,rpc,side,progress,bindSide,votingIntro,
+  storyUi=PremioStoriesUI.create({state,main,esc,icon,focusHeading,bindPrivacy,trophy,rpc,side,progress,bindSide,votingIntro,login,
     nextStory:()=>{state.confirmed=false;if(state.edit){state.edit=false;review();}else{state.step=1;step();}focusHeading();},
     backStory:()=>{if(state.edit){state.edit=false;review();}else votingIntro();focusHeading();}
   });
   hydrateIcons();bindPrivacy();bootstrap();
 })();
+
