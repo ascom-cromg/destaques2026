@@ -159,7 +159,7 @@ var PremioStoriesUI=(function(){
     function form(){
       if(APP_PAGES){
         const endpoint=String(window.PREMIO_CONFIG?.appsScriptUrl||'').trim();
-        if(/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(endpoint)){location.assign(endpoint);return;}
+        if(/^https:\/\/script\.google\.com\/(?:a\/macros\/cromg\.org\.br\/s|macros\/s)\/[A-Za-z0-9_-]+\/exec$/.test(endpoint)){location.assign(endpoint);return;}
         state.screen='story-awaiting';setView('<section class="status-content"><h1>Estamos preparando<br>um espaço para ouvir você.</h1><p>O envio de histórias ainda não foi aberto. Volte em breve.</p><a class="secondary" href="#">Voltar ao início</a></section>');return;
       }
       state.screen='story-form';
