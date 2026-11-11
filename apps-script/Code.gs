@@ -6,8 +6,9 @@ var PREMIO = Object.freeze({
   results:'Apuração 2026',control:'Controle 2026',settings:'Configuração 2026'
 });
 
-function doGet() {
+function doGet(e) {
   var view=HtmlService.createTemplateFromFile('Index');view.authBase=ScriptApp.getService().getUrl();
+  view.votingMode=!!(e&&e.parameter&&e.parameter.etapa==='votacao');
   return view.evaluate()
     .setTitle('Destaques CRO-MG 2026')
     .addMetaTag('viewport','width=device-width, initial-scale=1');
@@ -143,4 +144,5 @@ function abrirVotacao(){
 }
 function encerrarVotacao(){assertAdmin_();setStatus_('ENCERRADA');}
 function setStatus_(status){var s=sheet_(book_(),PREMIO.settings),rows=s.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(rows[i][0]==='STATUS'){s.getRange(i+1,2).setValue(status);return;}throw new Error('A organização precisa configurar o status.');}
+
 

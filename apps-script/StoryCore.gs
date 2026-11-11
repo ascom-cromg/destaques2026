@@ -1,8 +1,8 @@
 /* Calendário e validações da dinâmica de histórias. Datas em Brasília. */
 var StoryCore=(function(){
   'use strict';
-  var deadline=Date.parse('2026-12-01T00:00:00-03:00');
-  var earliestVote=deadline;
+  var deadline=Date.parse('2026-11-23T00:00:00-03:00');
+  var earliestVote=Date.parse('2026-12-01T00:00:00-03:00');
   function submissionOpen(now,status){return Number(now)<deadline && String(status||'ABERTO')==='ABERTO';}
   function votingDate(now){return Number(now)>=earliestVote;}
   function validate(payload){

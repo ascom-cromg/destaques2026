@@ -18,7 +18,7 @@ function bootstrapElection_(payload){
     var voted=hasVoted_(book,hash),sent=hasStory_(book,storyParticipantHash_(email));
     var nonce=Utilities.getUuid()+Utilities.getUuid();CacheService.getScriptCache().put('premio-nonce:'+nonce,hash,1800);
     var open=StoryCore.submissionOpen(now,settings.HISTORIAS_STATUS)&&yes_(settings.HISTORIAS_PRIVACIDADE_REVISADA);
-    return {ok:true,state:'ready',nonce:nonce,election:{submissionOpen:open,votingOpen:ready_(settings,catalog),alreadyVoted:voted,alreadySubmitted:sent,deadline:'30/11/2026 às 23h59',phase:settings.STATUS==='ENCERRADA'?'closed':open?'collecting':ready_(settings,catalog)?'voting':'awaiting_vote'}};
+    return {ok:true,state:'ready',nonce:nonce,election:{submissionOpen:open,votingOpen:ready_(settings,catalog),alreadyVoted:voted,alreadySubmitted:sent,deadline:'22/11/2026 às 23h59',phase:settings.STATUS==='ENCERRADA'?'closed':open?'collecting':ready_(settings,catalog)?'voting':'awaiting_vote'}};
   }catch(error){if(String(error.message||'').indexOf('Acesso restrito')===0)return {ok:true,state:'login'};return {ok:false,message:safeError_(error)};}
 }
 function listarHistorias(payload){
@@ -39,7 +39,7 @@ function enviarHistoria(payload){
     }
     var settings=settings_(book);
     if(!yes_(settings.HISTORIAS_PRIVACIDADE_REVISADA))throw new Error('A organização ainda está concluindo a preparação para receber relatos com privacidade.');
-    if(!StoryCore.submissionOpen(Date.now(),settings.HISTORIAS_STATUS))throw new Error('História: o recebimento está fechado. O prazo final é 30/11/2026, às 23h59, horário de Brasília.');
+    if(!StoryCore.submissionOpen(Date.now(),settings.HISTORIAS_STATUS))throw new Error('História: o recebimento está fechado. O prazo final é 22/11/2026, às 23h59, horário de Brasília.');
     if(existing)throw new Error('História: este código já existe. Recarregue a página e tente novamente.');
     var texts=sheet_(book,HISTORIAS.sheet),control=sheet_(book,HISTORIAS.control);
     var storyValues=[story.id,story.title,story.body,story.body,'PENDENTE',storyProof_(story.id,payload.authorKey),email];
@@ -61,7 +61,7 @@ function prepararHistorias_(book){
   sheet_(book,HISTORIAS.sheet).getRange(1,7).setValue('Autor: e-mail ou convite (restrito)');
   sheet_(book,HISTORIAS.control).hideSheet();
   var config=sheet_(book,PREMIO.settings),keys=config.getDataRange().getValues().map(function(r){return r[0];});
-  if(keys.indexOf('HISTORIAS_STATUS')<0)config.getRange(config.getLastRow()+1,1,1,3).setValues([['HISTORIAS_STATUS','ABERTO','Recebimento até 30/11/2026, às 23h59. Use ENCERRADO para antecipar o encerramento.']]);
+  if(keys.indexOf('HISTORIAS_STATUS')<0)config.getRange(config.getLastRow()+1,1,1,3).setValues([['HISTORIAS_STATUS','ABERTO','Recebimento até 22/11/2026, às 23h59. Use ENCERRADO para antecipar o encerramento.']]);
   if(keys.indexOf('HISTORIAS_PRIVACIDADE_REVISADA')<0)config.getRange(config.getLastRow()+1,1,1,3).setValues([['HISTORIAS_PRIVACIDADE_REVISADA','NÃO','Antes de marcar SIM, restrinja a planilha e o editor do script somente à organização da premiação. Não deixe acesso por link, domínio ou público ao conteúdo original.']]);
 }
 /** Menu administrativo: a organização confere a chave que o autor apresentar voluntariamente. */
@@ -73,4 +73,5 @@ function verificarAutoriaHistoria(){
   var row=storyRows_(book_()).find(function(r){return r[0]===id;});
   ui.alert(row&&row[5]===storyProof_(id,key)?'Autoria comprovada pelo código reservado.':'Código de autoria não confere.');
 }
+
 
